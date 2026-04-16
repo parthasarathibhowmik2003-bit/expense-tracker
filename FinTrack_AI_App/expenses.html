@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Expenses — FinTrack AI</title>
+  <meta name="description" content="Add, edit, and manage your expenses and income with AI auto-categorization." />
+  <link rel="stylesheet" href="css/main.css" />
+  <link rel="stylesheet" href="css/sidebar.css" />
+  <style>
+    .type-toggle-group { display: flex; gap: 0.5rem; }
+    .type-btn {
+      flex: 1;
+      padding: 0.7rem;
+      border-radius: var(--radius);
+      border: 1.5px solid var(--border);
+      background: var(--bg-tertiary);
+      color: var(--text-secondary);
+      font-size: 0.875rem;
+      font-weight: 600;
+      transition: all var(--transition-fast);
+      text-align: center;
+    }
+    .type-btn.active.expense { background: var(--danger-light); border-color: var(--danger); color: var(--danger); }
+    .type-btn.active.income  { background: var(--success-light); border-color: var(--success); color: var(--success); }
+
+    .ai-suggest {
+      display: none;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 0.25rem;
+      font-size: 0.78rem;
+      color: var(--primary);
+      font-weight: 500;
+    }
+    .ai-suggest.visible { display: flex; }
+    .ai-suggest-badge {
+      background: var(--gradient);
+      color: white;
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+    }
+    .ai-suggest button {
+      background: transparent;
+      color: var(--primary);
+      font-size: 0.78rem;
+      font-weight: 600;
+      text-decoration: underline;
+    }
+
+    .filter-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.625rem;
+      align-items: center;
+      padding: 1rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      margin-bottom: 1.25rem;
+    }
+    .filter-bar .search-wrapper { flex: 1; min-width: 180px; }
+    .filter-bar .search-input { width: 100%; min-width: unset; }
+
+    .tx-table-wrap {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+
+    .summary-strip {
+      display: flex;
+      gap: 1rem;
+      padding: 1rem 1.25rem;
+      background: var(--bg-tertiary);
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+    .summary-strip-item { display: flex; align-items: center; gap: 0.5rem; font-size: 0.82rem; }
+    .summary-strip-item strong { font-weight: 700; }
+    .summary-strip-item.income strong { color: var(--success); }
+    .summary-strip-item.expense strong { color: var(--danger); }
+    .summary-strip-item.balance strong { color: var(--primary); }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+  <aside id="appSidebar" class="sidebar"></aside>
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <main class="main-content">
+    <div class="page-header">
+      <div style="display:flex;align-items:center;gap:0.75rem">
+        <button class="mobile-menu-btn" id="mobilMenuBtn">☰</button>
+        <div class="page-header-left">
+          <h1>Expenses</h1>
+          <p>Manage & track all transactions</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="theme-toggle-btn" id="themeToggleBtn">🌙</button>
+        <button class="btn btn-primary btn-sm" onclick="openModal('addModal')">+ Add Transaction</button>
+      </div>
+    </div>
+
+    <div class="page-container" style="padding-top:1.5rem">
+
+      <!-- Filter Bar -->
+      <div class="filter-bar animate-slideUp">
+        <div class="search-wrapper">
+          <span class="search-icon">🔍</span>
+          <input type="text" class="search-input" id="searchInput" placeholder="Search transactions…">
+        </div>
+        <select class="form-control" id="filterType" style="width:auto">
+          <option value="all">All Types</option>
+          <option value="expense">Expenses</option>
+          <option value="income">Income</option>
+        </select>
+        <select class="form-control" id="filterCategory" style="width:auto">
+          <option value="all">All Categories</option>
+        </select>
+        <select class="form-control" id="filterPeriod" style="width:auto">
+          <option value="all">All Time</option>
+          <option value="today">Today</option>
+          <option value="week">This Week</option>
+          <option value="month" selected>This Month</option>
+          <option value="year">This Year</option>
+        </select>
+        <input type="number" class="form-control" id="filterMin" placeholder="Min $" style="width:90px">
+        <input type="number" class="form-control" id="filterMax" placeholder="Max $" style="width:90px">
+        <button class="btn btn-secondary btn-sm" onclick="clearFilters()">✕ Clear</button>
+      </div>
+
+      <!-- Summary Strip -->
+      <div class="tx-table-wrap animate-slideUp stagger-1">
+        <div class="summary-strip" id="summaryStrip">
+          <div class="summary-strip-item income">Income: <strong id="sumIncome">—</strong></div>
+          <div class="summary-strip-item expense">Expenses: <strong id="sumExpenses">—</strong></div>
+          <div class="summary-strip-item balance">Balance: <strong id="sumBalance">—</strong></div>
+          <div class="summary-strip-item" style="margin-left:auto;color:var(--text-muted)">
+            <span id="txCount">0 transactions</span>
+          </div>
+        </div>
+
+        <div id="txTableContainer">
+          <table class="data-table" id="txTable">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Description</th>
+                <th>Category</th>
+                <th>Type</th>
+                <th style="text-align:right">Amount</th>
+                <th style="text-align:center">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="txTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div><!-- /container -->
+  </main>
+</div>
+
+<!-- Mobile Tab Bar -->
+<nav class="mobile-tab-bar" id="mobileTabBar"></nav>
+<!-- FAB -->
+<button class="fab" onclick="openModal('addModal')" title="Add Transaction">+</button>
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- ADD / EDIT MODAL -->
+<div class="modal-overlay" id="addModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modalTitle">➕ Add Transaction</h2>
+      <button class="modal-close" onclick="closeModal('addModal')">✕</button>
+    </div>
+    <div class="modal-form" id="txForm">
+      <!-- Type Toggle -->
+      <div class="form-group">
+        <label class="form-label">Type</label>
+        <div class="type-toggle-group">
+          <button class="type-btn expense active" data-type="expense" onclick="selectType('expense')">💸 Expense</button>
+          <button class="type-btn income" data-type="income" onclick="selectType('income')">💰 Income</button>
+        </div>
+        <input type="hidden" id="txType" value="expense">
+      </div>
+
+      <!-- Name -->
+      <div class="form-group">
+        <label class="form-label">Description</label>
+        <input type="text" class="form-control" id="txName" placeholder="e.g. Grocery Shopping" autocomplete="off">
+        <div class="ai-suggest" id="aiSuggest">
+          <span class="ai-suggest-badge">AI</span>
+          Category detected: <strong id="suggestedCat">—</strong>
+          <button onclick="acceptAISuggestion()">Apply</button>
+        </div>
+      </div>
+
+      <!-- Amount + Date -->
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Amount (<span id="curSymbol">$</span>)</label>
+          <input type="number" class="form-control" id="txAmount" placeholder="0.00" min="0" step="0.01">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Date</label>
+          <input type="date" class="form-control" id="txDate">
+        </div>
+      </div>
+
+      <!-- Category -->
+      <div class="form-group">
+        <label class="form-label">Category</label>
+        <select class="form-control" id="txCategory">
+          <option value="">Select category…</option>
+        </select>
+      </div>
+
+      <!-- Note -->
+      <div class="form-group">
+        <label class="form-label">Note (optional)</label>
+        <input type="text" class="form-control" id="txNote" placeholder="Add a note…">
+      </div>
+
+      <input type="hidden" id="txEditId">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('addModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveTransaction()" id="saveTxBtn">Save Transaction</button>
+    </div>
+  </div>
+</div>
+
+<!-- DELETE CONFIRM MODAL -->
+<div class="modal-overlay" id="deleteModal">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-header">
+      <h2>🗑️ Delete Transaction</h2>
+      <button class="modal-close" onclick="closeModal('deleteModal')">✕</button>
+    </div>
+    <p style="color:var(--text-secondary);font-size:0.9rem;margin-bottom:1.5rem">
+      Are you sure you want to delete <strong id="deleteTxName">this transaction</strong>? This action cannot be undone.
+    </p>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('deleteModal')">Cancel</button>
+      <button class="btn btn-danger" onclick="confirmDelete()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/app.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/export.js"></script>
+<script>
+  let pendingDeleteId = null;
+  let aiSuggestedCat  = '';
+  let CATEGORIES_INLINE = {};
+
+  function buildCategoriesRef() {
+    CATEGORIES_INLINE = window.CATEGORIES || {};
+  }
+
+  function selectType(type) {
+    document.getElementById('txType').value = type;
+    document.querySelectorAll('.type-btn').forEach(b => {
+      b.classList.remove('active');
+      if (b.dataset.type === type) b.classList.add('active');
+    });
+  }
+
+  // AI auto-suggest on name input
+  let aiDebounce;
+  document.getElementById('txName').addEventListener('input', function() {
+    clearTimeout(aiDebounce);
+    aiDebounce = setTimeout(() => {
+      const val = this.value.trim();
+      if (val.length < 3) { document.getElementById('aiSuggest').classList.remove('visible'); return; }
+      const cat = autoCategorize(val);
+      const catInfo = CATEGORIES[cat];
+      if (cat && cat !== 'others') {
+        aiSuggestedCat = cat;
+        document.getElementById('suggestedCat').textContent = `${catInfo.icon} ${catInfo.label}`;
+        document.getElementById('aiSuggest').classList.add('visible');
+      } else {
+        document.getElementById('aiSuggest').classList.remove('visible');
+      }
+    }, 300);
+  });
+
+  function acceptAISuggestion() {
+    document.getElementById('txCategory').value = aiSuggestedCat;
+    document.getElementById('aiSuggest').classList.remove('visible');
+    showToast('✅ Category Applied', `AI suggested: ${CATEGORIES[aiSuggestedCat]?.label}`, 'info');
+  }
+
+  function resetForm() {
+    document.getElementById('txType').value = 'expense';
+    document.getElementById('txName').value = '';
+    document.getElementById('txAmount').value = '';
+    document.getElementById('txDate').value = getToday();
+    document.getElementById('txCategory').value = '';
+    document.getElementById('txNote').value = '';
+    document.getElementById('txEditId').value = '';
+    document.getElementById('modalTitle').textContent = '➕ Add Transaction';
+    document.getElementById('saveTxBtn').textContent = 'Save Transaction';
+    document.getElementById('aiSuggest').classList.remove('visible');
+    selectType('expense');
+    const cur = CURRENCIES[AppState.currency];
+    document.getElementById('curSymbol').textContent = cur ? cur.symbol : '$';
+  }
+
+  function openAddModal() {
+    resetForm();
+    openModal('addModal');
+  }
+
+  function openEditModal(id) {
+    const tx = AppState.transactions.find(t => t.id === id);
+    if (!tx) return;
+    resetForm();
+    document.getElementById('txEditId').value = tx.id;
+    document.getElementById('txName').value = tx.name;
+    document.getElementById('txAmount').value = tx.amount;
+    document.getElementById('txDate').value = tx.date;
+    document.getElementById('txCategory').value = tx.category;
+    document.getElementById('txNote').value = tx.note || '';
+    selectType(tx.type);
+    document.getElementById('modalTitle').textContent = '✏️ Edit Transaction';
+    document.getElementById('saveTxBtn').textContent = 'Update';
+    openModal('addModal');
+  }
+
+  function saveTransaction() {
+    const name     = document.getElementById('txName').value.trim();
+    const amountRaw = parseFloat(document.getElementById('txAmount').value);
+    const date     = document.getElementById('txDate').value;
+    const category = document.getElementById('txCategory').value;
+    const type     = document.getElementById('txType').value;
+    const note     = document.getElementById('txNote').value.trim();
+    const editId   = document.getElementById('txEditId').value;
+
+    // Convert from display currency back to USD base
+    const cur = CURRENCIES[AppState.currency] || CURRENCIES.USD;
+    const amount = amountRaw / cur.rate;
+
+    if (!name)     { showToast('Missing field', 'Please enter a description', 'error'); return; }
+    if (!amount || amount <= 0) { showToast('Invalid amount', 'Enter a valid amount', 'error'); return; }
+    if (!date)     { showToast('Missing date', 'Please select a date', 'error'); return; }
+    if (!category) { showToast('Missing category', 'Please select a category', 'error'); return; }
+
+    if (editId) {
+      AppState.updateTransaction(editId, { name, amount, date, category, type, note });
+      showToast('✅ Updated', `${name} has been updated`, 'success');
+    } else {
+      AppState.addTransaction({ name, amount, date, category, type, note });
+      showToast('✅ Added', `${name} added successfully`, 'success');
+    }
+
+    closeModal('addModal');
+    renderTable();
+  }
+
+  function openDeleteModal(id) {
+    const tx = AppState.transactions.find(t => t.id === id);
+    if (!tx) return;
+    pendingDeleteId = id;
+    document.getElementById('deleteTxName').textContent = tx.name;
+    openModal('deleteModal');
+  }
+
+  function confirmDelete() {
+    if (!pendingDeleteId) return;
+    const tx = AppState.transactions.find(t => t.id === pendingDeleteId);
+    AppState.deleteTransaction(pendingDeleteId);
+    closeModal('deleteModal');
+    showToast('🗑️ Deleted', `${tx?.name || 'Transaction'} removed`, 'warning');
+    renderTable();
+  }
+
+  function getFilters() {
+    return {
+      search:   document.getElementById('searchInput').value,
+      type:     document.getElementById('filterType').value,
+      category: document.getElementById('filterCategory').value,
+      period:   document.getElementById('filterPeriod').value,
+      minAmount: document.getElementById('filterMin').value,
+      maxAmount: document.getElementById('filterMax').value,
+    };
+  }
+
+  function clearFilters() {
+    document.getElementById('searchInput').value = '';
+    document.getElementById('filterType').value = 'all';
+    document.getElementById('filterCategory').value = 'all';
+    document.getElementById('filterPeriod').value = 'all';
+    document.getElementById('filterMin').value = '';
+    document.getElementById('filterMax').value = '';
+    renderTable();
+  }
+
+  function renderTable() {
+    const filters = getFilters();
+    const txs = AppState.getFiltered(filters);
+    const summary = AppState.getSummary(txs);
+
+    document.getElementById('sumIncome').textContent   = AppState.formatAmount(summary.income);
+    document.getElementById('sumExpenses').textContent = AppState.formatAmount(summary.expenses);
+    document.getElementById('sumBalance').textContent  = AppState.formatAmount(summary.balance);
+    document.getElementById('txCount').textContent     = `${txs.length} transaction${txs.length !== 1 ? 's' : ''}`;
+
+    const tbody = document.getElementById('txTableBody');
+    if (!txs.length) {
+      tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="empty-state-icon">📭</div><h3>No transactions found</h3><p>Try adjusting your filters or add a new transaction</p></div></td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = txs.map(t => {
+      const cat = CATEGORIES[t.category] || { icon: '📦', label: t.category, class: 'cat-others' };
+      const sign = t.type === 'income' ? '+' : '-';
+      return `<tr>
+        <td style="color:var(--text-muted);font-size:0.8rem">${formatDate(t.date)}</td>
+        <td>
+          <div style="font-weight:600;font-size:0.875rem">${t.name}</div>
+          ${t.note ? `<div style="font-size:0.72rem;color:var(--text-muted)">${t.note}</div>` : ''}
+        </td>
+        <td>
+          <span class="badge ${cat.class}">${cat.icon} ${cat.label}</span>
+        </td>
+        <td>
+          <span class="badge ${t.type === 'income' ? 'badge-green' : 'badge-red'}">
+            ${t.type === 'income' ? '💰 Income' : '💸 Expense'}
+          </span>
+        </td>
+        <td style="text-align:right;font-weight:700;color:${t.type==='income'?'var(--success)':'var(--danger)'}">
+          ${sign}${AppState.formatAmount(t.amount)}
+        </td>
+        <td>
+          <div class="action-btns" style="justify-content:center">
+            <button class="btn btn-ghost btn-sm btn-icon" onclick="openEditModal('${t.id}')" title="Edit">✏️</button>
+            <button class="btn btn-ghost btn-sm btn-icon" onclick="openDeleteModal('${t.id}')" title="Delete">🗑️</button>
+          </div>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  // Live filter
+  ['searchInput','filterType','filterCategory','filterPeriod','filterMin','filterMax'].forEach(id => {
+    document.getElementById(id)?.addEventListener('input', renderTable);
+    document.getElementById(id)?.addEventListener('change', renderTable);
+  });
+
+  // Check if opened with ?add=1
+  function checkAutoOpen() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('add') === '1') {
+      resetForm();
+      openModal('addModal');
+    }
+  }
+
+  // Populate category dropdowns after CATEGORIES is available
+  function populateCategoryDropdowns() {
+    // Filter bar
+    const filterCat = document.getElementById('filterCategory');
+    Object.entries(CATEGORIES).forEach(([k, v]) => {
+      const opt = document.createElement('option');
+      opt.value = k; opt.textContent = v.icon + ' ' + v.label;
+      filterCat.appendChild(opt);
+    });
+    // Modal category select
+    const txCat = document.getElementById('txCategory');
+    const grpExp = document.createElement('optgroup'); grpExp.label = 'Expenses';
+    Object.entries(CATEGORIES).filter(([k]) => !['salary','income'].includes(k)).forEach(([k,v]) => {
+      const opt = document.createElement('option'); opt.value = k; opt.textContent = v.icon + ' ' + v.label;
+      grpExp.appendChild(opt);
+    });
+    txCat.appendChild(grpExp);
+    const grpInc = document.createElement('optgroup'); grpInc.label = 'Income';
+    [['salary','💰 Salary'],['income','💵 Other Income']].forEach(([k,l]) => {
+      const opt = document.createElement('option'); opt.value = k; opt.textContent = l;
+      grpInc.appendChild(opt);
+    });
+    txCat.appendChild(grpInc);
+  }
+
+  initShared('expenses.html');
+  populateCategoryDropdowns();
+  resetForm();
+  renderTable();
+  checkAutoOpen();
+</script>
+</body>
+</html>

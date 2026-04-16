@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard — FinTrack AI</title>
+  <meta name="description" content="Your financial dashboard with real-time insights, charts, and spending summaries." />
+  <link rel="stylesheet" href="css/main.css" />
+  <link rel="stylesheet" href="css/sidebar.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<div class="app-layout">
+  <!-- SIDEBAR -->
+  <aside id="appSidebar" class="sidebar"></aside>
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <!-- MAIN -->
+  <main class="main-content">
+    <div class="page-header">
+      <div style="display:flex;align-items:center;gap:0.75rem">
+        <button class="mobile-menu-btn" id="mobilMenuBtn">☰</button>
+        <div class="page-header-left">
+          <h1>Dashboard</h1>
+          <p id="headerDate">Loading…</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <div class="period-selector">
+          <button class="period-btn active" data-period="month">Month</button>
+          <button class="period-btn" data-period="week">Week</button>
+          <button class="period-btn" data-period="year">Year</button>
+        </div>
+        <button class="theme-toggle-btn" id="themeToggleBtn" title="Toggle theme">🌙</button>
+        <a href="expenses.html" class="btn btn-primary btn-sm">+ Add</a>
+      </div>
+    </div>
+
+    <div class="page-container" style="padding-top:1.5rem">
+
+      <!-- STATS ROW -->
+      <div class="stats-grid" id="statsGrid">
+        <!-- injected by JS -->
+        <div class="stat-card skeleton-stat skeleton animate-slideUp stagger-1"></div>
+        <div class="stat-card skeleton-stat skeleton animate-slideUp stagger-2"></div>
+        <div class="stat-card skeleton-stat skeleton animate-slideUp stagger-3"></div>
+        <div class="stat-card skeleton-stat skeleton animate-slideUp stagger-4"></div>
+      </div>
+
+      <!-- CHARTS ROW -->
+      <div class="charts-grid" style="margin-top:1.5rem">
+        <!-- Bar Chart -->
+        <div class="card animate-slideUp stagger-1">
+          <div class="section-header">
+            <h2><span class="dot"></span>Monthly Overview</h2>
+            <span class="badge badge-gray">Last 6 months</span>
+          </div>
+          <div class="chart-container">
+            <canvas id="monthlyBarChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Donut Chart -->
+        <div class="card animate-slideUp stagger-2">
+          <div class="section-header">
+            <h2><span class="dot"></span>By Category</h2>
+            <span class="badge badge-purple">This Month</span>
+          </div>
+          <div class="chart-container">
+            <canvas id="categoryDonutChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- TREND + RECENT -->
+      <div class="two-col-grid" style="margin-top:1.5rem">
+        <!-- Spending Trend -->
+        <div class="card animate-slideUp stagger-2">
+          <div class="section-header">
+            <h2><span class="dot"></span>14-Day Trend</h2>
+            <span class="badge badge-blue">Daily</span>
+          </div>
+          <div class="chart-container">
+            <canvas id="trendLineChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Recent Transactions -->
+        <div class="card animate-slideUp stagger-3">
+          <div class="section-header">
+            <h2><span class="dot"></span>Recent Transactions</h2>
+            <a href="expenses.html" class="btn btn-ghost btn-sm">See all →</a>
+          </div>
+          <div id="recentTxList">
+            <!-- injected -->
+          </div>
+        </div>
+      </div>
+
+      <!-- AI INSIGHTS + BUDGET -->
+      <div class="two-col-grid" style="margin-top:1.5rem">
+        <!-- AI Insights -->
+        <div class="card animate-slideUp stagger-3">
+          <div class="section-header">
+            <h2><span class="dot"></span>AI Insights</h2>
+            <span class="ai-badge">✨ AI</span>
+          </div>
+          <div id="aiInsightsPanel" style="display:flex;flex-direction:column;gap:0.75rem"></div>
+        </div>
+
+        <!-- Budget Status -->
+        <div class="card animate-slideUp stagger-4">
+          <div class="section-header">
+            <h2><span class="dot"></span>Budget Status</h2>
+            <a href="settings.html" class="btn btn-ghost btn-sm">Edit →</a>
+          </div>
+          <div id="budgetPanel" style="display:flex;flex-direction:column;gap:0.625rem"></div>
+        </div>
+      </div>
+
+      <!-- ANOMALIES -->
+      <div class="card animate-slideUp" style="margin-top:1.5rem" id="anomaliesCard">
+        <div class="section-header">
+          <h2><span class="dot"></span>Unusual Spending Detected</h2>
+          <span class="ai-badge">✨ AI</span>
+        </div>
+        <div id="anomaliesPanel"></div>
+      </div>
+
+    </div><!-- /page-container -->
+  </main>
+</div>
+
+<!-- Mobile Tab Bar -->
+<nav class="mobile-tab-bar" id="mobileTabBar"></nav>
+<!-- FAB -->
+<a href="expenses.html?add=1" class="fab" title="Add Expense">+</a>
+<!-- Toasts -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="js/app.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/export.js"></script>
+<script>
+  let currentPeriod = 'month';
+
+  function renderStats(period) {
+    const txs = AppState.getFiltered({ period });
+    const s   = AppState.getSummary(txs);
+
+    const prevPeriod = period === 'month' ? 'custom' : period;
+    const prevMonth  = getLastMonth();
+    const prevTxs    = period === 'month'
+      ? AppState.getFiltered({ period: 'custom', month: prevMonth })
+      : [];
+    const prevS = AppState.getSummary(prevTxs);
+
+    const balChange = prevS.balance !== 0 ? ((s.balance - prevS.balance) / Math.abs(prevS.balance) * 100).toFixed(1) : 0;
+    const expChange = prevS.expenses !== 0 ? ((s.expenses - prevS.expenses) / prevS.expenses * 100).toFixed(1) : 0;
+    const incChange = prevS.income !== 0 ? ((s.income - prevS.income) / prevS.income * 100).toFixed(1) : 0;
+
+    const txCount = txs.filter(t => t.type==='expense').length;
+
+    document.getElementById('statsGrid').innerHTML = `
+      <div class="stat-card animate-slideUp stagger-1">
+        <div class="stat-icon purple">💎</div>
+        <div class="stat-content">
+          <div class="stat-label">Net Balance</div>
+          <div class="stat-value" id="statBalance">—</div>
+          <div class="stat-change ${s.balance >= 0 ? 'up' : 'down'}">
+            ${s.balance >= 0 ? '▲' : '▼'} ${AppState.formatAmount(Math.abs(s.balance))} ${period === 'month' ? 'vs last month' : ''}
+          </div>
+        </div>
+      </div>
+      <div class="stat-card animate-slideUp stagger-2">
+        <div class="stat-icon green">💰</div>
+        <div class="stat-content">
+          <div class="stat-label">Total Income</div>
+          <div class="stat-value" id="statIncome">—</div>
+          <div class="stat-change ${Number(incChange) >= 0 ? 'up' : 'down'}">
+            ${Number(incChange) >= 0 ? '▲' : '▼'} ${Math.abs(incChange)}% ${period === 'month' ? 'vs last month':'' }
+          </div>
+        </div>
+      </div>
+      <div class="stat-card animate-slideUp stagger-3">
+        <div class="stat-icon red">💸</div>
+        <div class="stat-content">
+          <div class="stat-label">Total Expenses</div>
+          <div class="stat-value" id="statExpenses">—</div>
+          <div class="stat-change ${Number(expChange) <= 0 ? 'up' : 'down'}">
+            ${Number(expChange) >= 0 ? '▲' : '▼'} ${Math.abs(expChange)}% ${period === 'month' ? 'vs last month' : ''}
+          </div>
+        </div>
+      </div>
+      <div class="stat-card animate-slideUp stagger-4">
+        <div class="stat-icon blue">🧾</div>
+        <div class="stat-content">
+          <div class="stat-label">Transactions</div>
+          <div class="stat-value">${txCount}</div>
+          <div class="stat-change up">▲ ${txs.length} total</div>
+        </div>
+      </div>
+    `;
+
+    // Animate numbers
+    const cur = CURRENCIES[AppState.currency] || CURRENCIES.USD;
+    animateNumber(document.getElementById('statBalance'),  s.balance * cur.rate,  cur.symbol);
+    animateNumber(document.getElementById('statIncome'),   s.income * cur.rate,   cur.symbol);
+    animateNumber(document.getElementById('statExpenses'), s.expenses * cur.rate, cur.symbol);
+  }
+
+  function renderRecentTx() {
+    const txs = AppState.getFiltered({ period: 'month' }).slice(0, 8);
+    const el = document.getElementById('recentTxList');
+    if (!txs.length) {
+      el.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📭</div><h3>No transactions</h3><p>Add your first expense!</p></div>`;
+      return;
+    }
+    el.innerHTML = txs.map(t => {
+      const cat = CATEGORIES[t.category] || { icon: '📦', class: 'cat-others' };
+      const sign = t.type === 'income' ? '+' : '-';
+      return `
+        <div class="transaction-item">
+          <div class="transaction-icon ${cat.class}">${cat.icon}</div>
+          <div class="transaction-info">
+            <h4>${t.name}</h4>
+            <p>${formatDateShort(t.date)} · ${cat.label || t.category}</p>
+          </div>
+          <div class="transaction-amount ${t.type}">${sign}${AppState.formatAmount(t.amount)}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function renderBudget() {
+    const txs = AppState.getFiltered({ period: 'month', type: 'expense' });
+    const catTotals = AppState.getCategoryTotals(txs);
+    const el = document.getElementById('budgetPanel');
+
+    const hasBudgets = Object.keys(AppState.budgets).length > 0;
+    if (!hasBudgets) {
+      el.innerHTML = `<div class="empty-state"><div class="empty-state-icon">🎯</div><p>Set budgets in Settings</p></div>`;
+      return;
+    }
+
+    el.innerHTML = Object.entries(AppState.budgets).map(([cat, b]) => {
+      const spent = catTotals[cat] || 0;
+      const pct   = Math.min((spent / b.limit) * 100, 100);
+      const fillClass = pct >= 100 ? 'danger' : pct >= 75 ? 'warning' : 'success';
+      const catInfo = CATEGORIES[cat] || { icon: '📦' };
+      return `
+        <div class="budget-item">
+          <div class="budget-item-header">
+            <div class="budget-item-label">${catInfo.icon} ${b.name}</div>
+            <div class="budget-item-amounts">${AppState.formatAmount(spent)} / ${AppState.formatAmount(b.limit)}</div>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill ${fillClass}" style="width:${pct}%"></div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function renderAnomalies() {
+    const anomalies = AIEngine.detectAnomalies();
+    const card = document.getElementById('anomaliesCard');
+    const el   = document.getElementById('anomaliesPanel');
+    if (!anomalies.length) { card.style.display = 'none'; return; }
+    card.style.display = '';
+    el.innerHTML = `
+      <div style="display:flex;flex-wrap:wrap;gap:0.875rem">
+        ${anomalies.map(a => `
+          <div class="insight-card" style="flex:1;min-width:200px">
+            <div class="insight-icon">🔍</div>
+            <div class="insight-text">
+              <h4>${a.name}</h4>
+              <p>${AppState.formatAmount(a.amount)} on ${formatDateShort(a.date)} · Z-score: ${a.zScore}</p>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  function refreshDashboard(period) {
+    currentPeriod = period;
+    renderStats(period);
+    renderMonthlyBarChart('monthlyBarChart');
+    renderCategoryDonutChart('categoryDonutChart', period);
+    renderSpendingTrendChart('trendLineChart', 14);
+    renderRecentTx();
+    renderBudget();
+    renderInsights('aiInsightsPanel');
+    renderAnomalies();
+  }
+
+  // Period buttons
+  document.querySelectorAll('.period-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      refreshDashboard(btn.dataset.period);
+    });
+  });
+
+  // Init
+  initShared('dashboard.html');
+  document.getElementById('headerDate').textContent = new Date().toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+  refreshDashboard('month');
+</script>
+</body>
+</html>

@@ -1,0 +1,108 @@
+// =========================================
+//  EXPORT (export.js)
+//  CSV & PDF export functions
+// =========================================
+
+function exportCSV() {
+  const txs = AppState.getFiltered({ period: 'all' });
+  if (!txs.length) {
+    showToast('No data', 'No transactions to export', 'warning');
+    return;
+  }
+
+  const headers = ['Date','Type','Name','Category','Amount','Currency','Note'];
+  const cur = CURRENCIES[AppState.currency] || CURRENCIES.USD;
+  const rows = txs.map(t => [
+    t.date,
+    t.type,
+    `"${t.name.replace(/"/g,'""')}"`,
+    CATEGORIES[t.category]?.label || t.category,
+    (t.amount * cur.rate).toFixed(2),
+    AppState.currency,
+    `"${(t.note||'').replace(/"/g,'""')}"`
+  ]);
+
+  const csv = [headers.join(','), ...rows.map(r=>r.join(','))].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `fintrack_export_${getToday()}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+  showToast('✅ CSV Exported', `${txs.length} transactions exported`, 'success');
+}
+
+function exportPDF() {
+  const txs = AppState.getFiltered({ period: 'month' });
+  const summary = AppState.getSummary(txs);
+
+  const printWindow = window.open('', '_blank');
+  const catTotals = AppState.getCategoryTotals(txs);
+  const catRows = Object.entries(catTotals).sort((a,b)=>b[1]-a[1]).map(([cat,amt]) => {
+    const c = CATEGORIES[cat] || { label: cat, icon: '📦' };
+    return `<tr><td>${c.icon} ${c.label}</td><td style="text-align:right">${AppState.formatAmount(amt)}</td></tr>`;
+  }).join('');
+
+  const txRows = txs.slice(0,50).map(t => {
+    const c = CATEGORIES[t.category] || { label: t.category, icon: '📦' };
+    const sign = t.type === 'income' ? '+' : '-';
+    const color = t.type === 'income' ? '#10B981' : '#EF4444';
+    return `<tr>
+      <td>${t.date}</td>
+      <td>${t.name}</td>
+      <td>${c.icon} ${c.label}</td>
+      <td style="text-align:right;color:${color};font-weight:700">${sign}${AppState.formatAmount(t.amount)}</td>
+    </tr>`;
+  }).join('');
+
+  printWindow.document.write(`
+    <!DOCTYPE html><html><head>
+    <meta charset="UTF-8">
+    <title>FinTrack Report — ${new Date().toLocaleDateString()}</title>
+    <style>
+      *{box-sizing:border-box;margin:0;padding:0}
+      body{font-family:system-ui,sans-serif;padding:40px;color:#0F172A;background:#fff}
+      h1{font-size:24px;font-weight:800;color:#7C3AED;margin-bottom:4px}
+      .logo{display:flex;align-items:center;gap:12px;margin-bottom:32px}
+      .logo-icon{width:48px;height:48px;border-radius:12px;background:linear-gradient(135deg,#7C3AED,#3B82F6);
+        display:flex;align-items:center;justify-content:center;font-size:24px;color:white}
+      .subtitle{color:#94A3B8;font-size:14px;margin-top:4px}
+      .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:32px}
+      .stat-box{padding:16px;border-radius:12px;border:2px solid #E2E8F0}
+      .stat-box label{font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:#94A3B8;font-weight:600}
+      .stat-box .val{font-size:22px;font-weight:800;margin-top:4px}
+      .val.income{color:#10B981}.val.expense{color:#EF4444}.val.balance{color:#7C3AED}
+      table{width:100%;border-collapse:collapse;margin-bottom:32px}
+      th{text-align:left;padding:10px 12px;background:#F1F5F9;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:#64748B;font-weight:700}
+      td{padding:10px 12px;border-bottom:1px solid #E2E8F0;font-size:13px}
+      h2{font-size:16px;font-weight:700;color:#0F172A;margin-bottom:12px;margin-top:32px}
+      .footer{margin-top:40px;text-align:center;font-size:12px;color:#94A3B8;border-top:1px solid #E2E8F0;padding-top:16px}
+    </style></head><body>
+    <div class="logo">
+      <div class="logo-icon">💎</div>
+      <div>
+        <h1>FinTrack AI</h1>
+        <div class="subtitle">Expense Report — ${new Date().toLocaleDateString('en-US',{month:'long',year:'numeric'})}</div>
+      </div>
+    </div>
+    <div class="stats">
+      <div class="stat-box"><label>Total Income</label><div class="val income">${AppState.formatAmount(summary.income)}</div></div>
+      <div class="stat-box"><label>Total Expenses</label><div class="val expense">${AppState.formatAmount(summary.expenses)}</div></div>
+      <div class="stat-box"><label>Net Balance</label><div class="val balance">${AppState.formatAmount(summary.balance)}</div></div>
+    </div>
+    <h2>📊 Category Breakdown</h2>
+    <table><thead><tr><th>Category</th><th style="text-align:right">Amount</th></tr></thead>
+    <tbody>${catRows}</tbody></table>
+    <h2>📋 Transactions (Last 50)</h2>
+    <table><thead><tr><th>Date</th><th>Description</th><th>Category</th><th style="text-align:right">Amount</th></tr></thead>
+    <tbody>${txRows}</tbody></table>
+    <div class="footer">Generated by FinTrack AI on ${new Date().toLocaleString()} · Powered by AI</div>
+    <script>window.onload=()=>{window.print();}<\/script>
+    </body></html>
+  `);
+  printWindow.document.close();
+  showToast('📄 PDF Ready', 'Print dialog opened', 'success');
+}

@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Settings — FinTrack AI</title>
+  <meta name="description" content="Configure your FinTrack AI preferences, budgets, currency, and notifications." />
+  <link rel="stylesheet" href="css/main.css" />
+  <link rel="stylesheet" href="css/sidebar.css" />
+  <style>
+    .settings-section {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      padding: 1.75rem;
+      margin-bottom: 1.25rem;
+    }
+    .settings-section-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1.5rem;
+      padding-bottom: 0.875rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .settings-section-icon {
+      width: 40px; height: 40px;
+      border-radius: var(--radius);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem;
+      flex-shrink: 0;
+    }
+    .settings-section-header h2 {
+      font-size: 1rem;
+      font-weight: 700;
+    }
+    .settings-section-header p { font-size: 0.78rem; color: var(--text-muted); }
+
+    .setting-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.875rem 0;
+      border-bottom: 1px solid var(--border);
+      gap: 1rem;
+    }
+    .setting-row:last-child { border-bottom: none; padding-bottom: 0; }
+    .setting-row-label { flex: 1; }
+    .setting-row-label h4 { font-size: 0.9rem; font-weight: 600; }
+    .setting-row-label p  { font-size: 0.78rem; color: var(--text-muted); margin-top: 2px; }
+    .setting-row-control { flex-shrink: 0; }
+
+    .budget-editor-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .budget-editor-row:last-child { border-bottom: none; }
+    .budget-label { display: flex; align-items: center; gap: 0.5rem; flex: 1; font-size: 0.875rem; font-weight: 500; }
+    .budget-input {
+      width: 110px;
+      padding: 0.5rem 0.75rem;
+      background: var(--bg-tertiary);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text-primary);
+      font-size: 0.875rem;
+      font-weight: 600;
+      text-align: right;
+      transition: border-color var(--transition-fast);
+    }
+    .budget-input:focus { border-color: var(--primary); }
+    .budget-spent-label { font-size: 0.75rem; color: var(--text-muted); min-width: 80px; text-align: right; }
+
+    .danger-zone {
+      background: rgba(239,68,68,0.04);
+      border-color: rgba(239,68,68,0.2);
+    }
+    .danger-zone .settings-section-header { border-bottom-color: rgba(239,68,68,0.2); }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+  <aside id="appSidebar" class="sidebar"></aside>
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <main class="main-content">
+    <div class="page-header">
+      <div style="display:flex;align-items:center;gap:0.75rem">
+        <button class="mobile-menu-btn" id="mobilMenuBtn">☰</button>
+        <div class="page-header-left">
+          <h1>Settings</h1>
+          <p>Customize your FinTrack experience</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="theme-toggle-btn" id="themeToggleBtn">🌙</button>
+        <button class="btn btn-primary btn-sm" onclick="saveAllSettings()">💾 Save All</button>
+      </div>
+    </div>
+
+    <div class="page-container" style="padding-top:1.5rem;max-width:860px">
+
+      <!-- PROFILE -->
+      <div class="settings-section animate-slideUp">
+        <div class="settings-section-header">
+          <div class="settings-section-icon" style="background:rgba(124,58,237,0.12)">👤</div>
+          <div>
+            <h2>Profile</h2>
+            <p>Your personal information</p>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-row-label">
+            <h4>Display Name</h4>
+            <p>Your name shown in the sidebar</p>
+          </div>
+          <div class="setting-row-control">
+            <input type="text" class="form-control" id="settingName" style="width:200px" placeholder="Your name">
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-row-label">
+            <h4>Email</h4>
+            <p>For account identification</p>
+          </div>
+          <div class="setting-row-control">
+            <input type="email" class="form-control" id="settingEmail" style="width:200px" placeholder="you@email.com">
+          </div>
+        </div>
+      </div>
+
+      <!-- APPEARANCE -->
+      <div class="settings-section animate-slideUp stagger-1">
+        <div class="settings-section-header">
+          <div class="settings-section-icon" style="background:rgba(59,130,246,0.12)">🎨</div>
+          <div>
+            <h2>Appearance</h2>
+            <p>Theme and display preferences</p>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-row-label">
+            <h4>Dark Mode</h4>
+            <p>Switch between dark and light theme</p>
+          </div>
+          <div class="setting-row-control">
+            <label class="toggle">
+              <input type="checkbox" id="themeSetting" onchange="handleThemeToggle(this)">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-row-label">
+            <h4>Currency</h4>
+            <p>Default currency for display</p>
+          </div>
+          <div class="setting-row-control">
+            <select class="form-control" id="settingCurrency">
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- NOTIFICATIONS -->
+      <div class="settings-section animate-slideUp stagger-2">
+        <div class="settings-section-header">
+          <div class="settings-section-icon" style="background:rgba(245,158,11,0.12)">🔔</div>
+          <div>
+            <h2>Notifications</h2>
+            <p>Budget alerts and spending warnings</p>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-row-label">
+            <h4>Budget Alerts</h4>
+            <p>Notify when you reach 80% or 100% of a budget</p>
+          </div>
+          <div class="setting-row-control">
+            <label class="toggle">
+              <input type="checkbox" id="settingNotifications">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-row-label">
+            <h4>AI Insights</h4>
+            <p>Show AI-powered spending insights on dashboard</p>
+          </div>
+          <div class="setting-row-control">
+            <label class="toggle">
+              <input type="checkbox" id="settingAiInsights" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- BUDGET EDITOR -->
+      <div class="settings-section animate-slideUp stagger-3">
+        <div class="settings-section-header">
+          <div class="settings-section-icon" style="background:rgba(16,185,129,0.12)">🎯</div>
+          <div>
+            <h2>Monthly Budgets</h2>
+            <p>Set spending limits per category</p>
+          </div>
+          <button class="btn btn-success btn-sm" style="margin-left:auto" onclick="applyAISuggestions()">✨ AI Suggest</button>
+        </div>
+        <div id="budgetEditor"></div>
+      </div>
+
+      <!-- AI SETTINGS -->
+      <div class="settings-section animate-slideUp stagger-3">
+        <div class="settings-section-header">
+          <div class="settings-section-icon" style="background:var(--gradient-soft)">🤖</div>
+          <div>
+            <h2>AI Features</h2>
+            <p>Configure intelligent features</p>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-row-label">
+            <h4>Auto-Categorization</h4>
+            <p>Automatically detect category from expense description</p>
+          </div>
+          <div class="setting-row-control">
+            <label class="toggle">
+              <input type="checkbox" id="settingAutoCat" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-row-label">
+            <h4>Spending Prediction</h4>
+            <p>Use AI to forecast next month's expenses</p>
+          </div>
+          <div class="setting-row-control">
+            <label class="toggle">
+              <input type="checkbox" id="settingPrediction" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-row-label">
+            <h4>Anomaly Detection</h4>
+            <p>Flag unusually large transactions</p>
+          </div>
+          <div class="setting-row-control">
+            <label class="toggle">
+              <input type="checkbox" id="settingAnomalies" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- DATA MANAGEMENT -->
+      <div class="settings-section animate-slideUp stagger-4">
+        <div class="settings-section-header">
+          <div class="settings-section-icon" style="background:rgba(6,182,212,0.12)">💾</div>
+          <div>
+            <h2>Data Management</h2>
+            <p>Export and manage your data</p>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-row-label">
+            <h4>Export as CSV</h4>
+            <p>Download all transactions as a spreadsheet</p>
+          </div>
+          <div class="setting-row-control">
+            <button class="btn btn-secondary btn-sm" onclick="exportCSV()">📥 Export</button>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-row-label">
+            <h4>Export as PDF</h4>
+            <p>Generate a printable monthly report</p>
+          </div>
+          <div class="setting-row-control">
+            <button class="btn btn-secondary btn-sm" onclick="exportPDF()">📄 Export</button>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-row-label">
+            <h4>Transactions Stored</h4>
+            <p>Total records in local storage</p>
+          </div>
+          <div class="setting-row-control">
+            <span class="badge badge-purple" id="txCountBadge">—</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- DANGER ZONE -->
+      <div class="settings-section danger-zone animate-slideUp">
+        <div class="settings-section-header">
+          <div class="settings-section-icon" style="background:var(--danger-light)">⚠️</div>
+          <div>
+            <h2>Danger Zone</h2>
+            <p>Irreversible actions — proceed carefully</p>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-row-label">
+            <h4>Reset Sample Data</h4>
+            <p>Restore demo transactions to see the app in action</p>
+          </div>
+          <div class="setting-row-control">
+            <button class="btn btn-secondary btn-sm" onclick="loadSampleData()">🔄 Load Demo</button>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-row-label">
+            <h4>Clear All Data</h4>
+            <p>Permanently delete all transactions and settings</p>
+          </div>
+          <div class="setting-row-control">
+            <button class="btn btn-danger btn-sm" onclick="confirmClearAll()">🗑️ Clear All</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<nav class="mobile-tab-bar" id="mobileTabBar"></nav>
+<a href="expenses.html?add=1" class="fab">+</a>
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- CONFIRM CLEAR MODAL -->
+<div class="modal-overlay" id="clearModal">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-header">
+      <h2>☠️ Clear All Data</h2>
+      <button class="modal-close" onclick="closeModal('clearModal')">✕</button>
+    </div>
+    <p style="color:var(--text-secondary);font-size:0.9rem;margin-bottom:1.5rem">
+      This will permanently delete <strong>all transactions, budgets, and settings</strong>.<br>
+      Type <code style="background:var(--bg-tertiary);padding:2px 6px;border-radius:4px">DELETE</code> to confirm.
+    </p>
+    <input type="text" class="form-control" id="clearConfirmInput" placeholder="Type DELETE to confirm">
+    <div class="modal-footer" style="margin-top:1rem">
+      <button class="btn btn-secondary" onclick="closeModal('clearModal')">Cancel</button>
+      <button class="btn btn-danger" onclick="executeClearAll()">Clear Everything</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/app.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/export.js"></script>
+<script>
+  function loadSettings() {
+    const s = AppState.settings;
+    // Populate currency dropdown
+    const curSelect = document.getElementById('settingCurrency');
+    curSelect.innerHTML = '';
+    Object.entries(CURRENCIES).forEach(([code, cur]) => {
+      const opt = document.createElement('option');
+      opt.value = code;
+      opt.textContent = code + ' — ' + cur.symbol + ' ' + cur.name;
+      if (AppState.currency === code) opt.selected = true;
+      curSelect.appendChild(opt);
+    });
+    document.getElementById('settingName').value = s.name || '';
+    document.getElementById('settingEmail').value = s.email || '';
+    document.getElementById('themeSetting').checked = s.theme === 'dark';
+    document.getElementById('settingNotifications').checked = s.notifications !== false;
+    document.getElementById('settingAiInsights').checked = s.aiInsights !== false;
+    document.getElementById('settingAutoCat').checked = s.autoCat !== false;
+    document.getElementById('settingPrediction').checked = s.prediction !== false;
+    document.getElementById('settingAnomalies').checked = s.anomalies !== false;
+    document.getElementById('txCountBadge').textContent = AppState.transactions.length + ' records';
+  }
+
+  function handleThemeToggle(el) {
+    AppState.settings.theme = el.checked ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', AppState.settings.theme);
+    AppState.updateThemeIcon();
+    AppState.save();
+  }
+
+  function renderBudgetEditor() {
+    const txs = AppState.getFiltered({ period: 'month', type: 'expense' });
+    const catTotals = AppState.getCategoryTotals(txs);
+    const el = document.getElementById('budgetEditor');
+
+    el.innerHTML = Object.entries(AppState.budgets).map(([cat, b]) => {
+      const spent    = catTotals[cat] || 0;
+      const catInfo  = CATEGORIES[cat] || { icon:'📦', label:cat };
+      const pct      = b.limit > 0 ? Math.min(Math.round(spent/b.limit*100), 100) : 0;
+      const fillClass = pct >= 100 ? 'danger' : pct >= 80 ? 'warning' : 'success';
+      return `
+        <div class="budget-editor-row">
+          <div class="budget-label">
+            <span>${catInfo.icon}</span>
+            <span>${catInfo.label}</span>
+          </div>
+          <div style="flex:1;margin:0 1rem">
+            <div class="progress-bar">
+              <div class="progress-fill ${fillClass}" style="width:${pct}%"></div>
+            </div>
+          </div>
+          <div class="budget-spent-label">${AppState.formatAmount(spent)} spent</div>
+          <div style="display:flex;align-items:center;gap:4px">
+            <span style="font-size:0.85rem;color:var(--text-muted)">${CURRENCIES[AppState.currency]?.symbol || '$'}</span>
+            <input type="number" class="budget-input" id="budget_${cat}" value="${b.limit}"
+              min="0" step="10" onchange="updateBudgetPreview('${cat}', this.value)">
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function updateBudgetPreview(cat, val) {
+    AppState.budgets[cat].limit = parseFloat(val) || 0;
+  }
+
+  function applyAISuggestions() {
+    const sugg = AIEngine.suggestBudgets();
+    Object.entries(sugg.suggestions).forEach(([cat, amt]) => {
+      if (AppState.budgets[cat]) {
+        AppState.budgets[cat].limit = amt;
+        const inp = document.getElementById('budget_' + cat);
+        if (inp) inp.value = amt;
+      }
+    });
+    showToast('✨ AI Budgets Applied', 'Based on 50/30/20 rule + your income', 'success');
+    renderBudgetEditor();
+  }
+
+  function saveAllSettings() {
+    AppState.settings.name          = document.getElementById('settingName').value.trim() || 'User';
+    AppState.settings.email         = document.getElementById('settingEmail').value.trim();
+    AppState.settings.notifications = document.getElementById('settingNotifications').checked;
+    AppState.settings.aiInsights    = document.getElementById('settingAiInsights').checked;
+    AppState.settings.autoCat       = document.getElementById('settingAutoCat').checked;
+    AppState.settings.prediction    = document.getElementById('settingPrediction').checked;
+    AppState.settings.anomalies     = document.getElementById('settingAnomalies').checked;
+
+    const selectedCurrency = document.getElementById('settingCurrency').value;
+    AppState.setCurrency(selectedCurrency);
+
+    // Save budgets
+    Object.keys(AppState.budgets).forEach(cat => {
+      const inp = document.getElementById('budget_' + cat);
+      if (inp) AppState.budgets[cat].limit = parseFloat(inp.value) || 0;
+    });
+
+    AppState.save();
+    showToast('✅ Settings Saved', 'All preferences have been saved', 'success');
+
+    // Update sidebar
+    renderSidebar('settings.html');
+  }
+
+  function confirmClearAll() { openModal('clearModal'); }
+
+  function executeClearAll() {
+    const val = document.getElementById('clearConfirmInput').value;
+    if (val !== 'DELETE') {
+      showToast('❌ Incorrect', 'Type DELETE to confirm', 'error');
+      return;
+    }
+    localStorage.clear();
+    closeModal('clearModal');
+    showToast('🗑️ Cleared', 'All data has been removed', 'warning');
+    setTimeout(() => location.reload(), 1200);
+  }
+
+  function loadSampleData() {
+    Storage.set('transactions', DEFAULT_TRANSACTIONS);
+    Storage.set('budgets', DEFAULT_BUDGETS);
+    AppState.transactions = DEFAULT_TRANSACTIONS;
+    AppState.budgets = DEFAULT_BUDGETS;
+    showToast('✅ Demo Data Loaded', 'Sample data has been restored', 'success');
+    document.getElementById('txCountBadge').textContent = AppState.transactions.length + ' records';
+    renderBudgetEditor();
+  }
+
+  initShared('settings.html');
+  loadSettings();
+  renderBudgetEditor();
+</script>
+</body>
+</html>
